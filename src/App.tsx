@@ -1,85 +1,119 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import git from "isomorphic-git";
 import LightningFS from "@isomorphic-git/lightning-fs";
+import http from "isomorphic-git/http/web";
 
-const useConstructor = (callBack = () => {}) => {
-  const hasBeenCalled = useRef(false);
-  if (hasBeenCalled.current) return;
-  callBack();
-  hasBeenCalled.current = true;
-};
-
-const author = {
-  name: "author name",
-  email: "name@email.com",
-};
+let fs = new LightningFS("fs");
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 
 function App() {
-  const dir = "/";
-  let fs: any;
-  let pfs: any;
+  const dir = "/tutorial";
+  // let fs: any;
 
-  async function add(filepath: string) {
-    return await git
-      .add({ fs: fs, dir: dir, filepath })
-      .catch((err: any) => console.log("GitService add err", err));
-  }
-
-  async function commit(dir: string, message: string) {
-    try {
-      return await git.commit({
-        fs: fs,
-        dir,
-        message,
-        author: author,
-      });
-    } catch (err) {
-      console.log("GitService commit err", err);
-    }
-  }
-
-  async function log(dir: string) {
-    console.log("log dir", dir);
-    return await git.log({ fs: fs, dir });
-  }
-
-  useConstructor(async () => {
-    fs = new LightningFS(dir);
-    pfs = fs.promises;
-  });
+  // useConstructor(async () => {
+  //   fs = new LightningFS("fs");
+  // });
   const [message, setMessage] = useState<any | undefined>();
 
   const handleInit = async () => {
-    const initResult = await git.init({ fs: fs, dir: dir });
-    console.log("initResult", initResult);
-    console.log(`Initialized empty Git repository in ${dir}`);
+    try {
+      await fs.promises.mkdir(dir);
+      setMessage("File system initialized!");
+    } catch (error) {
+      if (error) setMessage(error);
+    }
+  };
 
-    const addFileResult = await pfs.writeFile(dir + "/README.md", "# README");
-    console.log("addFileResult", addFileResult);
+  const handleWrite = async () => {
+    try {
+      const file = {
+        name: "/tutorial/textfile.txt",
+        contents: "sample text file contents",
+      };
+      await fs.promises.writeFile(file.name, encoder.encode(file.contents));
+      setMessage("File written!");
+    } catch (error) {
+      if (error) setMessage(error);
+    }
+  };
 
-    const addResult = await add("README.md");
-    console.log("addResult", addResult);
+  const handleLs = async () => {
+    try {
+      const files = await fs.promises.readdir(dir);
+      setMessage(files);
+    } catch (error) {
+      if (error) setMessage(error);
+    }
+  };
 
-    const commitResult = await commit(dir, "Initial commit");
-    console.log("commitResult", commitResult);
+  const handleRead = async () => {
+    try {
+      const file = await fs.promises.readFile("/tutorial/textfile.txt");
+      setMessage(decoder.decode(file));
+    } catch (error) {
+      if (error) setMessage(error);
+    }
+  };
 
-    const logResult = await log(dir);
-    console.log("logResult", JSON.stringify(logResult));
+  const handleClone = async () => {
+    try {
+      const options = {
+        fs: new LightningFS("fs"),
+        http,
+        dir,
+        corsProxy: "https://cors.isomorphic-git.org",
+        url: "https://github.com/isomorphic-git/isomorphic-git",
+        ref: "main",
+        singleBranch: true,
+        depth: 10,
+      };
+      await git.clone(options);
+      setMessage("Repo cloned!");
+    } catch (error) {
+      if (error) {
+        setMessage(error);
+        console.error(error);
+      }
+    }
   };
 
   const handleLog = async () => {
     try {
-      const logs = await await git.log({ fs: fs, dir });
-      console.log({ logs });
+      const logs = await git.log({ fs, dir });
+      setMessage(logs);
     } catch (error) {
       setMessage(error);
     }
   };
+
+  const handleStatus = async () => {
+    try {
+      const status = await git.status({ fs, dir, filepath: "README.md" });
+      setMessage(status);
+    } catch (error) {
+      setMessage(error);
+    }
+  };
+
+  const handleWipe = async () => {
+    setMessage("IndexedDB Cleared");
+    console.clear();
+    // @ts-ignore
+    fs = new LightningFS("fs", { wipe: true });
+  };
+
   return (
     <div>
       <div style={{ marginTop: 20 }}>
-        <button onClick={handleInit}>Initialize Repo</button>
-        <button onClick={handleLog}>Log Messages</button>
+        <button onClick={handleInit}>Initialize File System</button>
+        <button onClick={handleWrite}>Write File</button>
+        <button onClick={handleLs}>List Files</button>
+        <button onClick={handleRead}>Read File</button>
+        <button onClick={handleClone}>Clone Repo</button>
+        <button onClick={handleLog}>Read Git Log</button>
+        <button onClick={handleStatus}>README.md Status</button>
+        <button onClick={handleWipe}>Clear IndexedDB</button>
       </div>
       <div>
         <pre>{message && JSON.stringify(message, null, 2)}</pre>
